@@ -9,6 +9,7 @@
 #define TRIGpin 8
 #define Gas_SENSOR A1
 #define ldrPin A0
+#define solarPin A2
 #define wled1 4
 #define wled2 5
 #define wled3 13
@@ -52,6 +53,13 @@ void backward() {
   digitalWrite(motor4, LOW);
 }
 
+void stopMotor() {
+  digitalWrite(motor1, LOW);
+  digitalWrite(motor2, LOW);
+  digitalWrite(motor3, LOW);
+  digitalWrite(motor4, LOW);
+}
+
 void loop() {
   float solarVoltage = readSolarVoltage();
 
@@ -84,32 +92,43 @@ void loop() {
   duration = pulseIn(ECHOpin, HIGH);
   distance = duration * 0.034 / 2;
 
-  // Read Gas Sensor and PIR Sensor
-  gasValue = analogRead(Gas_SENSOR);
-  haspir = digitalRead(pir);
-  
-  if (haspir == HIGH) {
-    digitalWrite(rled, HIGH);
-    Serial.println("HUMAN DETECTED!!!");
-    startPlayback(sample, sizeof(sample));
+  if (distance < 5) {
+    Serial.println("Obstacle detected, checking for human...");
+
+    haspir = digitalRead(pir);
+    
+    if (haspir == HIGH) {
+      Serial.println("HUMAN DETECTED!!!");
+      digitalWrite(rled, HIGH);
+      startPlayback(sample, sizeof(sample));
+      
+      // Gas Sensor starts only if human detected
+      gasValue = analogRead(Gas_SENSOR);
+      Serial.print("Gas Sensor Value: ");
+      Serial.println(gasValue);
+    } else {
+      Serial.println("No human detected.");
+      digitalWrite(rled, LOW);
+      gasValue = 0; // Reset gas sensor value
+    }
   } else {
+    haspir = 0;
+    gasValue = 0;
     digitalWrite(rled, LOW);
-    Serial.println("HUMAN NOT DETECTED");
   }
 
   // Format Data as a String
-  String data = "LDR:" + String(ldrStatus) + ", Distance:" + String(distance) +
-                ", Gas:" + String(gasValue) + ", PIR:" + String(haspir);
+  String data = "LDR:" + String(ldrStatus) + ", Solar:" + String(solarVoltage) +
+                ", PIR:" + String(haspir) + ", Gas:" + String(gasValue);
   
   Serial1.println(data); // Send Data to ESP8266
-  
   delay(1000);
   backward();
   delay(1000);
 }
 
 float readSolarVoltage() {
-  return analogRead(A2) * (5.0 / 1023.0) * 2; // Assuming a voltage divider setup
+  return analogRead(solarPin) * (5.0 / 1023.0) * 2; // Assuming a voltage divider setup
 }
 
 // Sample PCM Audio Data
