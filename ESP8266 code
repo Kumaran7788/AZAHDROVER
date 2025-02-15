@@ -1,0 +1,79 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+
+const char* ssid = "Kumaran King";
+const char* password = "momdad7788";
+const char* server = "api.thingspeak.com";  
+String apiKey = "BJ6F5YWYAJRH62G1";
+
+WiFiClient client;
+
+void setup() {
+  Serial.begin(115200); 
+  Serial1.begin(9600);  
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Connected!");
+}
+
+void loop() {
+  if (Serial1.available()) {
+    String data = Serial1.readStringUntil('\n');
+    Serial.println("Received from Arduino: " + data);
+
+    int ldrValue = getValue(data, "LDR:");
+    float solarVoltage = getValueFloat(data, "Solar:");
+    int pirValue = getValue(data, "PIR:");
+    int gasValue = getValue(data, "Gas:");
+
+    sendToThingSpeak(ldrValue, solarVoltage, pirValue, gasValue);
+  }
+}
+
+int getValue(String data, String key) {
+  int startIndex = data.indexOf(key);
+  if (startIndex != -1) {
+    int valueStart = startIndex + key.length();
+    int valueEnd = data.indexOf(",", valueStart);
+    if (valueEnd == -1) valueEnd = data.length();
+    return data.substring(valueStart, valueEnd).toInt();
+  }
+  return 0;
+}
+
+float getValueFloat(String data, String key) {
+  int startIndex = data.indexOf(key);
+  if (startIndex != -1) {
+    int valueStart = startIndex + key.length();
+    int valueEnd = data.indexOf(",", valueStart);
+    if (valueEnd == -1) valueEnd = data.length();
+    return data.substring(valueStart, valueEnd).toFloat();
+  }
+  return 0.0;
+}
+
+void sendToThingSpeak(int ldr, float solar, int pir, int gas) {
+  if (client.connect(server, 80)) {
+    String url = "/update?api_key=" + apiKey + "&field1=" + String(ldr) +
+                 "&field2=" + String(solar) + "&field3=" + String(pir) +
+                 "&field4=" + String(gas);
+
+    Serial.println("Sending data to ThingSpeak...");
+
+    client.print("GET " + url + " HTTP/1.1\r\n");
+    client.print("Host: " + String(server) + "\r\n");
+    client.print("Connection: close\r\n\r\n");
+
+    delay(1000);
+    client.stop();
+    Serial.println("Data Sent to ThingSpeak!");
+  } else {
+    Serial.println("Connection to ThingSpeak failed.");
+  }
+}
