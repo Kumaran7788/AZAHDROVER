@@ -1,0 +1,121 @@
+#include <PCM.h>
+
+#define motor1 14
+#define motor2 15
+#define motor3 16
+#define motor4 17
+
+#define ECHOpin 9
+#define TRIGpin 8
+#define Gas_SENSOR A1
+#define ldrPin A0
+#define wled1 4
+#define wled2 5
+#define wled3 13
+#define yled 12
+#define rled 11
+#define pir 3
+
+long duration, distance;
+int ldrStatus, gasValue, haspir;
+const float voltageThreshold = 3.5; // Adjust as needed
+
+void setup() {
+  pinMode(motor1, OUTPUT);
+  pinMode(motor2, OUTPUT);
+  pinMode(motor3, OUTPUT);
+  pinMode(motor4, OUTPUT);
+  pinMode(TRIGpin, OUTPUT);
+  pinMode(ECHOpin, INPUT);
+  pinMode(pir, INPUT);
+  pinMode(rled, OUTPUT);
+  pinMode(yled, OUTPUT);
+  pinMode(wled1, OUTPUT);
+  pinMode(wled2, OUTPUT);
+  pinMode(wled3, OUTPUT);
+
+  Serial.begin(9600);      // For debugging
+  Serial1.begin(115200);   // Communication with ESP8266
+}
+
+void forward() {
+  digitalWrite(motor1, LOW);
+  digitalWrite(motor3, LOW);
+  digitalWrite(motor2, HIGH);
+  digitalWrite(motor4, HIGH);
+}
+
+void backward() {
+  digitalWrite(motor1, HIGH);
+  digitalWrite(motor3, HIGH);
+  digitalWrite(motor2, LOW);
+  digitalWrite(motor4, LOW);
+}
+
+void loop() {
+  float solarVoltage = readSolarVoltage();
+
+  if (solarVoltage >= voltageThreshold) {
+    forward();
+    Serial.println("Car is running...");
+  } else {
+    stopMotor();
+    Serial.println("Insufficient power, car is stopped.");
+  }
+
+  // Read LDR sensor
+  ldrStatus = analogRead(ldrPin);
+  if (ldrStatus <= 4) {
+    digitalWrite(wled1, HIGH);
+    digitalWrite(wled2, HIGH);
+    digitalWrite(wled3, HIGH);
+  } else {
+    digitalWrite(wled1, LOW);
+    digitalWrite(wled2, LOW);
+    digitalWrite(wled3, LOW);
+  }
+
+  // Measure Distance using Ultrasonic Sensor
+  digitalWrite(TRIGpin, LOW);
+  delayMicroseconds(4);
+  digitalWrite(TRIGpin, HIGH);
+  delayMicroseconds(15);
+  digitalWrite(TRIGpin, LOW);
+  duration = pulseIn(ECHOpin, HIGH);
+  distance = duration * 0.034 / 2;
+
+  // Read Gas Sensor and PIR Sensor
+  gasValue = analogRead(Gas_SENSOR);
+  haspir = digitalRead(pir);
+  
+  if (haspir == HIGH) {
+    digitalWrite(rled, HIGH);
+    Serial.println("HUMAN DETECTED!!!");
+    startPlayback(sample, sizeof(sample));
+  } else {
+    digitalWrite(rled, LOW);
+    Serial.println("HUMAN NOT DETECTED");
+  }
+
+  // Format Data as a String
+  String data = "LDR:" + String(ldrStatus) + ", Distance:" + String(distance) +
+                ", Gas:" + String(gasValue) + ", PIR:" + String(haspir);
+  
+  Serial1.println(data); // Send Data to ESP8266
+  
+  delay(1000);
+  backward();
+  delay(1000);
+}
+
+float readSolarVoltage() {
+  return analogRead(A2) * (5.0 / 1023.0) * 2; // Assuming a voltage divider setup
+}
+
+// Sample PCM Audio Data
+const unsigned char sample[] PROGMEM = {
+  126, 126, 126, 127, 127, 126, 126, 126, 128, 129, 129, 127, 127, 127, 127, 127, 126, 126, 127, 128, 
+  130, 130, 130, 129, 128, 128, 127, 127, 127, 127, 127, 127, 127, 127, 127, 126, 126, 128, 129, 129, 
+  128, 127, 125, 125, 125, 125, 126, 127, 129, 130, 131, 132, 132, 132, 131, 131, 130, 128, 126, 124, 
+  123, 123, 124, 125, 126, 126, 126, 126, 127, 129, 129, 128, 127, 127, 128, 129, 130, 129, 129, 128
+};
